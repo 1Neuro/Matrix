@@ -3,317 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modern Matrix Client</title>
-    <!-- Tailwind CSS for modern styling -->
+    <title>Matrix Client</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Matrix JS SDK -->
-    <script src="https://unpkg.com/matrix-js-sdk@latest/dist/browser-matrix.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-        .error-shake { animation: shake 0.4s ease-in-out; }
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
+        body {
+            background: radial-gradient(circle at top right, #2d1b4d, #000000);
+        }
+        .glass {
+            background: rgba(30, 10, 50, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.5); }
+        #message-container { height: calc(100vh - 180px); }
+        #room-list { height: calc(100vh - 100px); }
+        
+        input, button {
+            transition: all 0.2s ease;
         }
     </style>
 </head>
-<body class="h-screen flex items-center justify-center overflow-hidden">
+<body class="text-slate-100 h-screen overflow-hidden font-sans">
 
-    <!-- Auth Overlay -->
-    <div id="auth-screen" class="z-50 fixed inset-0 bg-slate-950 flex items-center justify-center p-4">
-        <div id="login-card" class="bg-slate-900 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-800">
-            <div class="flex flex-col items-center mb-8">
-                <div class="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20">
-                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                </div>
-                <h1 class="text-2xl font-bold">Welcome Back</h1>
-                <p class="text-slate-400 text-sm mt-1">Sign in to your Matrix homeserver</p>
-            </div>
-
+    <!-- Login Modal -->
+    <div id="login-overlay" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div class="glass rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <h1 class="text-3xl font-bold mb-6 text-center text-purple-400 tracking-tight">Matrix</h1>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Homeserver URL</label>
-                    <input type="text" id="hs-url" value="https://matrix.org" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 outline-none focus:border-emerald-500 transition-all">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-purple-300 mb-1 opacity-70">Homeserver URL</label>
+                    <input id="hs-url" type="text" value="https://matrix.org" class="w-full bg-black/40 p-3 border border-purple-500/30 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-white">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Username</label>
-                    <input type="text" id="username" placeholder="@user:matrix.org" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 outline-none focus:border-emerald-500 transition-all">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-purple-300 mb-1 opacity-70">Username</label>
+                    <input id="user-id" type="text" placeholder="@alice:matrix.org" class="w-full bg-black/40 p-3 border border-purple-500/30 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-white placeholder:text-slate-600">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Password</label>
-                    <input type="password" id="password" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 outline-none focus:border-emerald-500 transition-all">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-purple-300 mb-1 opacity-70">Password</label>
+                    <input id="password" type="password" class="w-full bg-black/40 p-3 border border-purple-500/30 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-white">
                 </div>
-                <button onclick="handleLogin()" id="login-btn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg mt-4 transition-all active:scale-95 flex justify-center items-center">
-                    <span>Login</span>
-                </button>
-                <div id="error-msg" class="text-red-400 text-sm text-center hidden mt-2"></div>
+                <button id="login-btn" class="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-500 shadow-lg shadow-purple-900/20 transform hover:-translate-y-0.5 active:translate-y-0">Login</button>
+                <p id="login-error" class="text-red-400 text-sm hidden text-center mt-2"></p>
             </div>
         </div>
     </div>
 
-    <!-- Main App UI -->
-    <div id="app-screen" class="hidden w-full h-full flex flex-col md:flex-row">
-        <!-- Sidebar: Rooms -->
-        <aside class="w-full md:w-80 bg-slate-900 border-r border-slate-800 flex flex-col">
-            <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-                <span class="font-bold text-emerald-500">Rooms</span>
-                <div class="flex items-center space-x-2 text-[10px] text-slate-500 uppercase">
-                    <span>Latency x:</span>
-                    <span id="latency-x" class="text-emerald-400 font-mono">0.0ms</span>
-                </div>
+    <!-- Main UI -->
+    <div id="main-ui" class="hidden flex h-screen p-2 gap-2">
+        <!-- Sidebar -->
+        <div class="w-80 glass rounded-2xl flex flex-col shrink-0 overflow-hidden">
+            <div class="p-5 border-b border-purple-500/20 flex justify-between items-center bg-purple-950/20">
+                <span id="user-display" class="font-bold truncate text-purple-200 text-sm">Rooms</span>
+                <button onclick="logout()" class="text-[10px] font-bold uppercase tracking-widest text-purple-400 hover:text-red-400 transition-colors">Logout</button>
             </div>
-            <div id="room-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                <div class="text-slate-500 text-center py-10 text-sm">Syncing rooms...</div>
+            <div id="room-list" class="overflow-y-auto custom-scrollbar">
+                <div class="p-4 text-center text-purple-300/40 text-sm italic">Searching for signals...</div>
             </div>
-            <div class="p-4 bg-slate-950 flex items-center justify-between">
-                <div class="truncate mr-2">
-                    <p id="my-user-id" class="text-xs font-medium truncate"></p>
-                </div>
-                <button onclick="logout()" class="text-slate-500 hover:text-red-400 p-1">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                </button>
-            </div>
-        </aside>
+        </div>
 
         <!-- Chat Area -->
-        <main class="flex-1 flex flex-col bg-slate-950 relative">
-            <div id="chat-header" class="p-4 border-b border-slate-800 flex items-center justify-between">
-                <h2 id="current-room-name" class="font-semibold italic text-slate-400">Select a room to start</h2>
-            </div>
-            
-            <div id="message-container" class="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col space-y-4">
-                <!-- Messages populate here -->
-            </div>
-
-            <div class="p-4 border-t border-slate-800 bg-slate-900">
-                <div class="flex items-center bg-slate-800 rounded-xl px-4 py-2 border border-slate-700">
-                    <input type="text" id="msg-input" placeholder="Type a message..." class="flex-1 bg-transparent outline-none py-1">
-                    <button id="send-btn" class="text-emerald-500 hover:text-emerald-400 transition-colors ml-2 disabled:opacity-50">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
-                    </button>
+        <div class="flex-1 glass rounded-2xl flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div id="chat-header" class="p-4 border-b border-purple-500/20 bg-purple-950/20 flex items-center justify-between">
+                <div>
+                    <h2 id="current-room-name" class="font-bold text-lg text-white select-none">Select a room</h2>
+                    <p id="sync-status" class="text-[10px] uppercase tracking-widest text-purple-400 font-bold">Idle</p>
                 </div>
             </div>
-        </main>
+
+            <!-- Messages -->
+            <div id="message-container" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-black/20">
+                <div class="flex flex-col items-center justify-center h-full text-purple-300/20">
+                    <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                    <p class="italic text-sm">Encryption not supported in this lite client</p>
+                </div>
+            </div>
+
+            <!-- Input -->
+            <div class="p-4 bg-purple-950/20 border-t border-purple-500/20">
+                <form id="msg-form" class="flex gap-3">
+                    <input id="msg-input" type="text" autocomplete="off" placeholder="Type a message..." class="flex-1 bg-black/40 p-3 border border-purple-500/20 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-white disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+                    <button type="submit" id="send-btn" class="bg-purple-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-purple-500 shadow-lg disabled:opacity-30 transition-all" disabled>Send</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script>
-        let client;
-        let activeRoomId = null;
-        let lastSyncTime = null;
+        // State Management
+        let state = {
+            hsUrl: '',
+            accessToken: '',
+            userId: '',
+            currentRoomId: '',
+            nextBatch: '',
+            rooms: {},
+            isSyncing: false
+        };
 
-        const authScreen = document.getElementById('auth-screen');
-        const appScreen = document.getElementById('app-screen');
-        const errorMsg = document.getElementById('error-msg');
-        const loginCard = document.getElementById('login-card');
+        const els = {
+            loginOverlay: document.getElementById('login-overlay'),
+            mainUi: document.getElementById('main-ui'),
+            roomList: document.getElementById('room-list'),
+            messageContainer: document.getElementById('message-container'),
+            roomName: document.getElementById('current-room-name'),
+            msgInput: document.getElementById('msg-input'),
+            sendBtn: document.getElementById('send-btn'),
+            loginError: document.getElementById('login-error'),
+            syncStatus: document.getElementById('sync-status')
+        };
 
-        // Round to nearest tenth per user instructions
-        function roundTenth(num) {
-            return Math.round(num * 10) / 10;
-        }
+        async function apiRequest(method, path, body = null) {
+            const url = `${state.hsUrl}/_matrix/client/r0${path}`;
+            const headers = {};
+            if (body) headers['Content-Type'] = 'application/json';
+            if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
 
-        function showError(text) {
-            errorMsg.innerText = text;
-            errorMsg.classList.remove('hidden');
-            loginCard.classList.add('error-shake');
-            setTimeout(() => loginCard.classList.remove('error-shake'), 400);
-        }
-
-        async function init() {
-            const savedHs = localStorage.getItem('mx_hs_url');
-            const savedToken = localStorage.getItem('mx_access_token');
-            const savedUserId = localStorage.getItem('mx_user_id');
-
-            if (savedToken && savedUserId && savedHs) {
-                try {
-                    setupClient(savedHs, savedToken, savedUserId);
-                    await startSync();
-                } catch (e) {
-                    console.error("Auto-init failed", e);
-                    logout();
-                }
-            }
-        }
-
-        function setupClient(baseUrl, accessToken, userId) {
-            client = matrixcs.createClient({
-                baseUrl: baseUrl,
-                accessToken: accessToken,
-                userId: userId
+            const response = await fetch(url, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : null
             });
 
-            document.getElementById('my-user-id').innerText = userId;
-            authScreen.classList.add('hidden');
-            appScreen.classList.remove('hidden');
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Request failed');
+            }
+            return response.json();
         }
 
-        async function handleLogin() {
-            const baseUrl = document.getElementById('hs-url').value.trim();
-            const user = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const btn = document.getElementById('login-btn');
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const user = document.getElementById('user-id').value;
+            const pass = document.getElementById('password').value;
+            const hs = document.getElementById('hs-url').value.replace(/\/$/, "");
 
-            if (!baseUrl || !user || !password) {
-                showError("All fields are required");
-                return;
-            }
+            els.loginError.classList.add('hidden');
 
-            btn.disabled = true;
-            btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
-
-            const tempClient = matrixcs.createClient(baseUrl);
-            
             try {
-                const result = await tempClient.login("m.login.password", { user, password });
-                localStorage.setItem("mx_hs_url", baseUrl);
-                localStorage.setItem("mx_access_token", result.access_token);
-                localStorage.setItem("mx_user_id", result.user_id);
-                
-                setupClient(baseUrl, result.access_token, result.user_id);
-                await startSync();
+                const data = await fetch(`${hs}/_matrix/client/r0/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'm.login.password',
+                        user: user,
+                        password: pass
+                    })
+                }).then(async r => {
+                    const res = await r.json();
+                    if (!r.ok) throw new Error(res.error || 'Login failed');
+                    return res;
+                });
+
+                if (data.access_token) {
+                    state.hsUrl = hs;
+                    state.accessToken = data.access_token;
+                    state.userId = data.user_id;
+                    
+                    els.loginOverlay.classList.add('hidden');
+                    els.mainUi.classList.remove('hidden');
+                    document.getElementById('user-display').innerText = state.userId;
+                    
+                    startSync();
+                }
             } catch (err) {
-                showError(err.message || "Authentication failed");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = "Login";
+                els.loginError.innerText = err.message;
+                els.loginError.classList.remove('hidden');
             }
-        }
+        });
+
+        function logout() { location.reload(); }
 
         async function startSync() {
-            lastSyncTime = performance.now();
-            
-            // Catching potential sync errors
-            try {
-                await client.startClient({ initialSyncLimit: 20 });
-            } catch (e) {
-                showError("Sync Error: " + e.message);
-                return;
-            }
+            if (state.isSyncing) return;
+            state.isSyncing = true;
+            els.syncStatus.innerText = 'Initializing...';
 
-            client.on("sync", (state, prevState, data) => {
-                if (state === "PREPARED") {
-                    const now = performance.now();
-                    const rawX = now - lastSyncTime;
-                    const x = roundTenth(rawX);
-                    document.getElementById('latency-x').innerText = `${x}ms`;
-                    
-                    refreshRoomList();
-                    listenForEvents();
+            while (state.isSyncing) {
+                try {
+                    let path = `/sync?timeout=30000`;
+                    if (state.nextBatch) path += `&since=${state.nextBatch}`;
+
+                    const data = await apiRequest('GET', path);
+                    state.nextBatch = data.next_batch;
+                    handleSyncData(data);
+                    els.syncStatus.innerText = 'Connected';
+                } catch (err) {
+                    console.error('Sync error:', err);
+                    els.syncStatus.innerText = 'Reconnecting...';
+                    await new Promise(r => setTimeout(r, 5000));
                 }
-                
-                if (state === "ERROR") {
-                    console.error("Matrix Sync Error", data);
-                }
-            });
+            }
         }
 
-        function refreshRoomList() {
-            const list = document.getElementById('room-list');
-            const rooms = client.getRooms();
-            
-            if (rooms.length === 0) {
-                list.innerHTML = `<div class="text-slate-500 text-center py-10 text-xs px-4">No rooms found. Join some rooms on your mobile app!</div>`;
-                return;
-            }
+        function handleSyncData(data) {
+            const joined = data.rooms?.join || {};
+            for (const [roomId, roomData] of Object.entries(joined)) {
+                if (!state.rooms[roomId]) state.rooms[roomId] = { messages: [], name: roomId };
 
-            list.innerHTML = "";
-            rooms.forEach(room => {
-                const btn = document.createElement('button');
-                btn.className = `w-full text-left p-3 rounded-xl transition-all flex items-center space-x-3 hover:bg-slate-800 ${activeRoomId === room.roomId ? 'bg-slate-800 border border-slate-700 shadow-lg' : ''}`;
-                btn.innerHTML = `
-                    <div class="w-10 h-10 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold text-slate-300">
-                        ${room.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="truncate">
-                        <p class="text-sm font-semibold truncate">${room.name}</p>
-                        <p class="text-xs text-slate-500 truncate">${room.getLiveTimeline().getEvents().slice(-1)[0]?.getContent().body || 'No messages'}</p>
-                    </div>
+                const stateEvents = roomData.state?.events || [];
+                const nameEvent = stateEvents.find(e => e.type === 'm.room.name');
+                if (nameEvent) state.rooms[roomId].name = nameEvent.content.name;
+
+                const timeline = roomData.timeline?.events || [];
+                timeline.forEach(ev => {
+                    if (ev.type === 'm.room.message') {
+                        state.rooms[roomId].messages.push(ev);
+                        if (roomId === state.currentRoomId) appendMessage(ev);
+                    }
+                });
+            }
+            renderRoomList();
+        }
+
+        function renderRoomList() {
+            els.roomList.innerHTML = '';
+            Object.keys(state.rooms).forEach(id => {
+                const room = state.rooms[id];
+                const div = document.createElement('div');
+                div.className = `p-4 cursor-pointer border-b border-purple-500/10 hover:bg-purple-500/10 transition-all ${id === state.currentRoomId ? 'bg-purple-600/20 border-l-4 border-l-purple-500' : ''}`;
+                div.innerHTML = `
+                    <div class="font-bold text-sm truncate text-purple-100">${room.name}</div>
+                    <div class="text-[10px] uppercase tracking-tight text-purple-400 opacity-60 truncate">${id}</div>
                 `;
-                btn.onclick = () => selectRoom(room.roomId);
-                list.appendChild(btn);
+                div.onclick = () => selectRoom(id);
+                els.roomList.appendChild(div);
             });
         }
 
         function selectRoom(roomId) {
-            activeRoomId = roomId;
-            const room = client.getRoom(roomId);
-            document.getElementById('current-room-name').innerText = room.name;
-            document.getElementById('current-room-name').classList.remove('italic', 'text-slate-400');
-            
-            refreshRoomList();
-            renderMessages(room);
+            state.currentRoomId = roomId;
+            els.roomName.innerText = state.rooms[roomId].name;
+            els.messageContainer.innerHTML = '';
+            state.rooms[roomId].messages.forEach(appendMessage);
+            els.msgInput.disabled = false;
+            els.sendBtn.disabled = false;
+            renderRoomList();
         }
 
-        function renderMessages(room) {
-            const container = document.getElementById('message-container');
-            container.innerHTML = "";
-            
-            const events = room.getLiveTimeline().getEvents();
-            events.forEach(event => {
-                if (event.getType() !== "m.room.message") return;
-                appendMessageToUI(event);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function appendMessageToUI(event) {
-            const container = document.getElementById('message-container');
-            const isMe = event.getSender() === client.getUserId();
-            const body = event.getContent().body;
-            
+        function appendMessage(ev) {
+            const isMe = ev.sender === state.userId;
             const msgDiv = document.createElement('div');
-            msgDiv.className = `flex ${isMe ? 'justify-end' : 'justify-start'}`;
+            msgDiv.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
+            
+            const content = ev.content.body || '[Unsupported Message]';
+            const time = new Date(ev.origin_server_ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
             msgDiv.innerHTML = `
-                <div class="max-w-[80%] ${isMe ? 'bg-emerald-600 rounded-l-2xl rounded-tr-2xl' : 'bg-slate-800 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 shadow-sm">
-                    ${!isMe ? `<p class="text-[10px] font-bold text-emerald-400 mb-0.5">${event.getSender().split(':')[0]}</p>` : ''}
-                    <p class="text-sm leading-relaxed">${body}</p>
+                <div class="max-w-[85%] ${isMe ? 'bg-purple-600 shadow-purple-900/40 rounded-l-2xl rounded-tr-2xl' : 'bg-black/40 border border-purple-500/20 rounded-r-2xl rounded-tl-2xl'} p-4 shadow-xl">
+                    <div class="text-[9px] uppercase tracking-widest font-black text-purple-300 mb-1 opacity-70">${ev.sender}</div>
+                    <div class="text-sm whitespace-pre-wrap break-words leading-relaxed">${escapeHTML(content)}</div>
+                    <div class="text-[9px] opacity-40 mt-2 font-mono">${time}</div>
                 </div>
             `;
-            container.appendChild(msgDiv);
-            container.scrollTop = container.scrollHeight;
+            els.messageContainer.appendChild(msgDiv);
+            els.messageContainer.scrollTop = els.messageContainer.scrollHeight;
         }
 
-        function listenForEvents() {
-            client.on("Room.timeline", (event, room, toStartOfTimeline) => {
-                if (toStartOfTimeline) return;
-                if (event.getType() !== "m.room.message") return;
-                
-                if (room.roomId === activeRoomId) {
-                    appendMessageToUI(event);
-                }
-                refreshRoomList();
-            });
+        function escapeHTML(str) {
+            const p = document.createElement('p');
+            p.textContent = str;
+            return p.innerHTML;
         }
 
-        function logout() {
-            localStorage.clear();
-            window.location.reload();
-        }
+        document.getElementById('msg-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const body = els.msgInput.value.trim();
+            if (!body || !state.currentRoomId) return;
+            const txnId = Date.now();
+            els.msgInput.value = '';
 
-        // Send Logic
-        document.getElementById('send-btn').onclick = sendMessage;
-        document.getElementById('msg-input').onkeypress = (e) => {
-            if (e.key === 'Enter') sendMessage();
-        };
-
-        async function sendMessage() {
-            const input = document.getElementById('msg-input');
-            const content = input.value.trim();
-            if (!content || !activeRoomId) return;
-
-            input.value = "";
             try {
-                await client.sendTextMessage(activeRoomId, content);
-            } catch (e) {
-                console.error("Send failed", e);
+                await apiRequest('PUT', `/rooms/${encodeURIComponent(state.currentRoomId)}/send/m.room.message/${txnId}`, {
+                    msgtype: 'm.text',
+                    body: body
+                });
+            } catch (err) {
+                console.error('Send error:', err);
+                const errDiv = document.createElement('div');
+                errDiv.className = 'text-center text-[10px] text-red-400 italic bg-red-950/20 p-2 rounded-lg';
+                errDiv.innerText = 'Critical Error: ' + err.message;
+                els.messageContainer.appendChild(errDiv);
             }
-        }
-
-        window.onload = init;
+        };
     </script>
 </body>
 </html>
