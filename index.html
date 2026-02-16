@@ -25,56 +25,71 @@
     <script>
         let matrixClient;
 
-        async function login() {
-            const baseUrl = document.getElementById('hs-url').value;
-            const user = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+// Automatically try to resume session on page load
+window.onload = async () => {
+    const savedAddress = localStorage.getItem("mx_hs_url");
+    const savedToken = localStorage.getItem("mx_access_token");
+    const savedUserId = localStorage.getItem("mx_user_id");
 
-            // 1. Create the client
-            matrixClient = matrixcs.createClient(baseUrl);
+    if (savedToken && savedUserId && savedAddress) {
+        showClientArea(savedUserId);
+        
+        // Initialize client with existing token
+        matrixClient = matrixcs.createClient({
+            baseUrl: savedAddress,
+            accessToken: savedToken,
+            userId: savedUserId
+        });
 
-            try {
-                // 2. Authenticate
-                const result = await matrixClient.login("m.login.password", { user, password });
-                
-                document.getElementById('login-form').style.display = 'none';
-                document.getElementById('client-area').style.display = 'block';
-                document.getElementById('user-display').innerText = result.user_id;
+        await startSync();
+    }
+};
 
-                startSync();
-            } catch (err) {
-                alert("Login failed: " + err.message);
-            }
+async function login() {
+    const baseUrl = document.getElementById('hs-url').value;
+    const user = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    matrixClient = matrixcs.createClient(baseUrl);
+
+    try {
+        const result = await matrixClient.login("m.login.password", { user, password });
+        
+        // Save credentials to LocalStorage
+        localStorage.setItem("mx_hs_url", baseUrl);
+        localStorage.setItem("mx_access_token", result.access_token);
+        localStorage.setItem("mx_user_id", result.user_id);
+
+        showClientArea(result.user_id);
+        await startSync();
+    } catch (err) {
+        alert("Login failed: " + err.message);
+    }
+}
+
+function showClientArea(userId) {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('client-area').style.display = 'block';
+    document.getElementById('user-display').innerText = userId;
+}
+
+async function startSync() {
+    // initialSyncLimit: 10 (rounded as requested)
+    await matrixClient.startClient({ initialSyncLimit: 10 });
+
+    matrixClient.once('sync', (state) => {
+        if (state === "PREPARED") {
+            appendLog("Session Resumed & Synced!");
+            listenForMessages();
         }
+    });
+}
 
-        async function startSync() {
-            // 3. Start the client (initial sync)
-            await matrixClient.startClient({ initialSyncLimit: 10 });
-
-            matrixClient.once('sync', (state) => {
-                if (state === "PREPARED") {
-                    appendLog("Connected and Synced!");
-                    listenForMessages();
-                }
-            });
-        }
-
-        function listenForMessages() {
-            matrixClient.on("Room.timeline", (event, room, toStartOfTimeline) => {
-                if (toStartOfTimeline) return; // Don't log old history
-                if (event.getType() !== "m.room.message") return;
-
-                const sender = event.getSender();
-                const body = event.getContent().body;
-                appendLog(`[${room.name}] ${sender}: ${body}`);
-            });
-        }
-
-        function appendLog(msg) {
-            const log = document.getElementById('log');
-            log.innerHTML += `<div>${msg}</div>`;
-            log.scrollTop = log.scrollHeight;
-        }
+function logout() {
+    localStorage.clear();
+    location.reload();
+}
     </script>
 </body>
 </html>
+
