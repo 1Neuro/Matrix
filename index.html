@@ -1,0 +1,305 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Web Client - Glass Edition</title>
+    <script src="https://unpkg.com/matrix-js-sdk@34.8.0/dist/browser-matrix.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --glow-purple: #a855f7;
+            --glass-bg: rgba(15, 15, 20, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+
+        body { 
+            background: radial-gradient(circle at top right, #3b0764, #000000),
+                        radial-gradient(circle at bottom left, #1e1b4b, #000000);
+            background-attachment: fixed;
+            color: #e2e8f0;
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+
+        #chat-window { flex: 1; display: none; }
+
+
+        /* Glassmorphism Utility */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+        }
+
+
+        .neon-text {
+            text-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
+        }
+
+
+        /* Message Styling */
+        .message-mine { 
+            align-self: flex-end; 
+            background: linear-gradient(135deg, rgba(147, 51, 234, 0.6), rgba(168, 85, 247, 0.4));
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+
+        .message-theirs { 
+            align-self: flex-start; 
+            background: rgba(255, 255, 255, 0.05); 
+            backdrop-filter: blur(8px);
+            color: #e2e8f0; 
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+
+        /* Scrollbars */
+        #room-list::-webkit-scrollbar, #message-container::-webkit-scrollbar { width: 4px; }
+        #room-list::-webkit-scrollbar-thumb, #message-container::-webkit-scrollbar-thumb { 
+            background: rgba(168, 85, 247, 0.3); 
+            border-radius: 10px; 
+        }
+
+
+        /* Inputs */
+        input {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+            backdrop-filter: blur(4px);
+        }
+
+
+        input:focus {
+            border-color: var(--glow-purple) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+
+
+        .active-room {
+            background: rgba(168, 85, 247, 0.15);
+            border-left: 4px solid var(--glow-purple);
+        }
+
+
+        .room-item:hover:not(.active-room) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+    </style>
+</head>
+<body>
+
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="flex-1 flex items-center justify-center p-4">
+        <div class="glass-panel p-10 rounded-3xl shadow-2xl w-full max-w-md">
+            <h1 class="text-4xl font-black mb-8 text-center text-white neon-text tracking-tighter italic">MATRIX</h1>
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-[10px] font-bold text-purple-300 uppercase tracking-widest mb-1 ml-1">Protocol Node</label>
+                    <input type="text" id="hs-url" value="https://matrix.org" class="block w-full rounded-xl p-4 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-purple-300 uppercase tracking-widest mb-1 ml-1">Identity</label>
+                    <input type="text" id="username" placeholder="username" class="block w-full rounded-xl p-4 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-purple-300 uppercase tracking-widest mb-1 ml-1">Keyphrase</label>
+                    <input type="password" id="password" class="block w-full rounded-xl p-4 outline-none transition-all">
+                </div>
+                <button id="login-btn" class="w-full bg-purple-600/80 hover:bg-purple-500 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-all shadow-[0_10px_20px_-10px_rgba(168,85,247,0.5)] active:scale-[0.98]">Initialize Session</button>
+                <p id="login-error" class="text-red-400 text-xs hidden text-center font-medium"></p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Main Chat UI -->
+    <div id="chat-window" class="flex h-screen p-4 gap-4 overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-72 glass-panel rounded-2xl text-white flex flex-col overflow-hidden">
+            <div class="p-6 border-b border-white/5 font-black text-xl tracking-widest neon-text opacity-80">CHANNELS</div>
+            <div id="room-list" class="flex-1 overflow-y-auto py-2">
+                <!-- Rooms populate here -->
+            </div>
+            <div id="user-info" class="p-4 border-t border-white/5 text-[9px] text-purple-300 font-mono tracking-tighter bg-white/5"></div>
+        </div>
+
+
+        <!-- Chat Area -->
+        <div class="flex-1 flex flex-col glass-panel rounded-2xl overflow-hidden">
+            <div id="active-room-title" class="p-5 border-b border-white/5 font-bold text-purple-50/80 flex items-center">
+                <span class="w-2 h-2 rounded-full bg-purple-500 mr-3 animate-pulse"></span>
+                Select a channel
+            </div>
+            
+            <div id="message-container" class="flex-1 p-6 overflow-y-auto flex flex-col space-y-4">
+                <!-- Messages populate here -->
+            </div>
+
+
+            <div class="p-4 border-t border-white/5 flex space-x-3 bg-white/5 backdrop-blur-md">
+                <input type="text" id="message-input" placeholder="Enter message..." class="flex-1 rounded-xl px-5 py-3 outline-none">
+                <button id="send-btn" class="bg-purple-600/60 text-white px-8 py-3 rounded-xl hover:bg-purple-500/80 transition font-black shadow-lg uppercase text-xs tracking-widest border border-white/10">Send</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let matrixClient = null;
+        let activeRoomId = null;
+
+
+        const loginScreen = document.getElementById('login-screen');
+        const chatWindow = document.getElementById('chat-window');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
+        const roomList = document.getElementById('room-list');
+        const messageContainer = document.getElementById('message-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const activeRoomTitle = document.getElementById('active-room-title');
+
+
+        loginBtn.addEventListener('click', async () => {
+            const baseUrl = document.getElementById('hs-url').value;
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+
+            loginBtn.disabled = true;
+            loginBtn.innerText = "Connecting...";
+            loginError.classList.add('hidden');
+
+
+            try {
+                const tempClient = matrixcs.createClient(baseUrl);
+                const authResult = await tempClient.login("m.login.password", {
+                    user: user,
+                    password: pass
+                });
+
+
+                initMatrixClient(baseUrl, authResult.access_token, authResult.user_id);
+                
+                loginScreen.style.display = 'none';
+                chatWindow.style.display = 'flex';
+            } catch (err) {
+                loginError.innerText = err.message || "Session Initialization Failed";
+                loginError.classList.remove('hidden');
+                loginBtn.disabled = false;
+                loginBtn.innerText = "Initialize Session";
+            }
+        });
+
+
+        function initMatrixClient(baseUrl, accessToken, userId) {
+            matrixClient = matrixcs.createClient({
+                baseUrl: baseUrl,
+                accessToken: accessToken,
+                userId: userId
+            });
+
+
+            document.getElementById('user-info').innerText = `ID // ${userId}`;
+
+
+            matrixClient.on("Room", () => updateRoomList());
+            matrixClient.on("Room.timeline", (event, room, toStartOfTimeline) => {
+                if (toStartOfTimeline || event.getType() !== "m.room.message") return;
+                if (room.roomId === activeRoomId) renderMessage(event);
+            });
+
+
+            matrixClient.on("sync", (state) => {
+                if (state === "PREPARED") updateRoomList();
+            });
+
+
+            matrixClient.startClient({ initialSyncLimit: 20 });
+        }
+
+
+        function updateRoomList() {
+            const rooms = matrixClient.getRooms();
+            roomList.innerHTML = '';
+            
+            rooms.forEach(room => {
+                const item = document.createElement('div');
+                const isActive = room.roomId === activeRoomId;
+                item.className = `room-item px-6 py-4 transition-all text-sm font-medium border-b border-white/5 cursor-pointer ${isActive ? 'active-room text-purple-200' : 'text-gray-400'}`;
+                item.innerText = room.name || room.roomId;
+                item.onclick = () => selectRoom(room.roomId, room.name);
+                roomList.appendChild(item);
+            });
+        }
+
+
+        function selectRoom(roomId, roomName) {
+            activeRoomId = roomId;
+            activeRoomTitle.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 mr-3 shadow-[0_0_8px_#10b981]"></span> ${roomName || roomId}`;
+            messageContainer.innerHTML = '';
+            
+            const room = matrixClient.getRoom(roomId);
+            if (room) {
+                const timeline = room.getLiveTimeline().getEvents();
+                timeline.forEach(event => {
+                    if (event.getType() === "m.room.message") renderMessage(event);
+                });
+            }
+            updateRoomList();
+        }
+
+
+        function renderMessage(event) {
+            const body = event.getContent().body;
+            const sender = event.getSender();
+            const isMe = sender === matrixClient.getUserId();
+
+
+            const wrapper = document.createElement('div');
+            wrapper.className = `max-w-[85%] p-4 rounded-2xl text-sm shadow-xl ${isMe ? 'message-mine' : 'message-theirs'}`;
+            
+            const senderSpan = document.createElement('div');
+            senderSpan.className = `text-[9px] font-black uppercase mb-1 tracking-widest ${isMe ? 'text-purple-100' : 'text-purple-400'}`;
+            senderSpan.innerText = sender.split(':')[0].replace('@', '');
+            
+            const bodySpan = document.createElement('div');
+            bodySpan.className = 'leading-relaxed break-words';
+            bodySpan.innerText = body;
+
+
+            wrapper.appendChild(senderSpan);
+            wrapper.appendChild(bodySpan);
+            messageContainer.appendChild(wrapper);
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+        }
+
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text || !activeRoomId) return;
+            messageInput.value = '';
+            try {
+                await matrixClient.sendTextMessage(activeRoomId, text);
+            } catch (err) { console.error(err); }
+        }
+
+
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    </script>
+</body>
+</html>
